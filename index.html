@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#03246f">
+<title>Finanzas del hogar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --brand: #188ef3; --brand-dark: #03246f; --accent: #fced04;
+    --ink: #2c2e35;
+    --s50: #f8fafc; --s100: #f1f5f9; --s200: #e2e8f0; --s300: #cbd5e1;
+    --s400: #94a3b8; --s500: #64748b; --s700: #334155;
+    --red: #dc2626; --green: #16a34a;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font-family: Inter, system-ui, sans-serif; color: var(--ink);
+    background: var(--s100); -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 480px; margin: 0 auto; min-height: 100dvh; background: var(--s50);
+    display: flex; flex-direction: column; }
+
+  /* Header */
+  header { background: var(--brand-dark); color: #fff; padding: 14px 16px 18px; }
+  .hrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .hrow h1 { font-size: 15px; font-weight: 700; letter-spacing: .2px; }
+  .hrow .who { font-size: 12px; color: #bcd7f7; }
+  .logout { background: none; border: 1px solid #ffffff44; color: #fff; border-radius: 8px;
+    padding: 4px 10px; font-size: 12px; cursor: pointer; }
+  .mesnav { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 12px; }
+  .mesnav button { background: #ffffff1a; border: none; color: #fff; width: 32px; height: 32px;
+    border-radius: 8px; font-size: 16px; cursor: pointer; }
+  .mesnav .mes { font-size: 14px; font-weight: 600; text-transform: capitalize; min-width: 130px; text-align: center; }
+  .big { margin-top: 10px; text-align: center; }
+  .big .num { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .big .lbl { font-size: 11px; color: #bcd7f7; text-transform: uppercase; letter-spacing: .8px; }
+  .progress { height: 6px; background: #ffffff26; border-radius: 99px; margin-top: 10px; overflow: hidden; }
+  .progress i { display: block; height: 100%; background: var(--accent); border-radius: 99px;
+    transition: width .3s; }
+  .progress.over i { background: var(--red); }
+  .pmeta { font-size: 11px; color: #bcd7f7; margin-top: 5px; }
+
+  main { flex: 1; padding: 14px 16px 90px; }
+
+  /* Cards / rows */
+  .card { background: #fff; border: 1px solid var(--s200); border-radius: 14px; padding: 14px;
+    margin-bottom: 12px; }
+  .card h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--s500);
+    margin-bottom: 10px; }
+
+  /* Form */
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: var(--s100);
+    border-radius: 10px; padding: 4px; margin-bottom: 14px; }
+  .seg button { border: none; border-radius: 8px; padding: 9px; font: inherit; font-weight: 600;
+    font-size: 14px; color: var(--s500); background: transparent; cursor: pointer; }
+  .seg button.on-gasto { background: #fff; color: var(--red); box-shadow: 0 1px 3px #0001; }
+  .seg button.on-ingreso { background: #fff; color: var(--green); box-shadow: 0 1px 3px #0001; }
+  label.f { display: block; font-size: 12px; font-weight: 600; color: var(--s500); margin: 12px 0 5px; }
+  input, select { width: 100%; font: inherit; font-size: 15px; padding: 10px 12px;
+    border: 1px solid var(--s300); border-radius: 10px; background: #fff; color: var(--ink); }
+  input:focus, select:focus { outline: 2px solid var(--brand); outline-offset: -1px; border-color: var(--brand); }
+  .monto { font-size: 26px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+  .cats { display: flex; flex-wrap: wrap; gap: 7px; }
+  .cats button { border: 1px solid var(--s300); background: #fff; border-radius: 99px;
+    padding: 7px 12px; font: inherit; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+  .cats button.on { border-color: var(--brand); background: #e8f3fe; font-weight: 600; }
+  .dot { width: 8px; height: 8px; border-radius: 99px; flex: none; }
+  .btn { width: 100%; border: none; border-radius: 12px; padding: 14px; font: inherit;
+    font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 16px; }
+  .btn-gasto { background: var(--red); color: #fff; }
+  .btn-ingreso { background: var(--green); color: #fff; }
+  .btn-brand { background: var(--brand); color: #fff; }
+  .btn:disabled { opacity: .5; }
+  .btn-ghost { background: none; border: none; color: var(--s500); font: inherit; font-size: 13px;
+    cursor: pointer; width: 100%; text-align: center; margin-top: 10px; padding: 6px; }
+
+  /* Movimientos */
+  .dia { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px;
+    color: var(--s400); margin: 14px 0 6px; }
+  .mov { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--s200);
+    border-radius: 12px; padding: 10px 12px; margin-bottom: 6px; cursor: pointer; }
+  .mov .info { flex: 1; min-width: 0; }
+  .mov .t { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mov .s { font-size: 12px; color: var(--s500); margin-top: 1px; }
+  .mov .m { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 15px; }
+  .mov .m.neg { color: var(--red); } .mov .m.pos { color: var(--green); }
+  .mov .del { border: none; background: var(--s100); color: var(--s500); border-radius: 8px;
+    width: 30px; height: 30px; font-size: 14px; cursor: pointer; flex: none; }
+  .mov .del.arm { background: var(--red); color: #fff; width: auto; padding: 0 10px; font-size: 12px; font-weight: 700; }
+
+  /* Resumen */
+  .balance { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; text-align: center; }
+  .balance div b { display: block; font-size: 16px; font-variant-numeric: tabular-nums; }
+  .balance div span { font-size: 11px; color: var(--s500); }
+  .bar { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; font-size: 13px; }
+  .bar .n { width: 118px; display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .bar .n span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar .track { flex: 1; height: 8px; background: var(--s100); border-radius: 99px; overflow: hidden; }
+  .bar .track i { display: block; height: 100%; border-radius: 99px; }
+  .bar .v { width: 88px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 12px; }
+
+  .empty { text-align: center; color: var(--s500); padding: 40px 20px; font-size: 14px; }
+  .empty b { display: block; color: var(--ink); margin-bottom: 6px; font-size: 15px; }
+  .banner { background: #fef2f2; border: 1px solid #fecaca; color: var(--red); border-radius: 10px;
+    padding: 10px 12px; font-size: 13px; margin-bottom: 12px; display: flex; justify-content: space-between; gap: 8px; }
+  .banner button { border: none; background: none; color: var(--red); font-weight: 700; cursor: pointer; }
+  .ok { background: #f0fdf4; border: 1px solid #bbf7d0; color: var(--green); }
+
+  /* Bottom nav */
+  nav { position: fixed; bottom: 0; left: 0; right: 0; background: #fff;
+    border-top: 1px solid var(--s200); display: flex; justify-content: center; }
+  nav .inner { display: flex; width: 100%; max-width: 480px; }
+  nav button { flex: 1; border: none; background: none; padding: 10px 4px calc(10px + env(safe-area-inset-bottom));
+    font: inherit; font-size: 11px; font-weight: 600; color: var(--s400); cursor: pointer; }
+  nav button .i { display: block; font-size: 19px; margin-bottom: 2px; }
+  nav button.on { color: var(--brand); }
+
+  /* Login */
+  .login { max-width: 380px; margin: 0 auto; padding: 48px 20px; }
+  .login .logo { text-align: center; margin-bottom: 26px; }
+  .login .logo .t { font-size: 22px; font-weight: 800; color: var(--brand-dark); }
+  .login .logo .s { font-size: 13px; color: var(--s500); margin-top: 4px; }
+
+  .skeleton { padding: 40px 0; text-align: center; color: var(--s400); font-size: 13px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+</style>
+<script src="config.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
+</head>
+<body>
+
+<div x-data="app()" x-init="init()" x-cloak>
+  <style>[x-cloak]{display:none}</style>
+
+  <!-- ======== LOGIN ======== -->
+  <template x-if="!session">
+    <div class="login">
+      <div class="logo">
+        <div class="t">Finanzas del hogar</div>
+        <div class="s">Ingresá con tu cuenta para ver y cargar movimientos</div>
+      </div>
+      <div class="card">
+        <div class="banner" x-show="error"><span x-text="error"></span><button @click="error=''">✕</button></div>
+        <label class="f">Email</label>
+        <input type="email" x-model="loginEmail" autocomplete="email" placeholder="tu@email.com">
+        <label class="f">Contraseña</label>
+        <input type="password" x-model="loginPass" autocomplete="current-password" @keydown.enter="doLogin()">
+        <button class="btn btn-brand" @click="doLogin()" :disabled="busy">Entrar</button>
+      </div>
+    </div>
+  </template>
+
+  <!-- ======== APP ======== -->
+  <template x-if="session">
+    <div class="wrap">
+      <header>
+        <div class="hrow">
+          <div>
+            <h1>Finanzas del hogar</h1>
+            <div class="who" x-text="'Hola, ' + (profile?.nombre || '')"></div>
+          </div>
+          <button class="logout" @click="doLogout()">Salir</button>
+        </div>
+        <div class="mesnav">
+          <button @click="cambiarMes(-1)">‹</button>
+          <div class="mes" x-text="mesLabel"></div>
+          <button @click="cambiarMes(1)" :disabled="esMesActual">›</button>
+        </div>
+        <div class="big">
+          <div class="num" x-text="fmt(totalGastos)"></div>
+          <div class="lbl">gastado en el mes</div>
+        </div>
+        <div class="progress" :class="{over: presupuesto > 0 && totalGastos > presupuesto}">
+          <i :style="'width:' + Math.min(100, presupuesto > 0 ? totalGastos/presupuesto*100 : 0) + '%'"></i>
+        </div>
+        <div class="pmeta" x-show="presupuesto > 0">
+          <span x-text="fmt(totalGastos) + ' de ' + fmt(presupuesto) + ' (' + Math.round(totalGastos/presupuesto*100) + '%)'"></span>
+        </div>
+      </header>
+
+      <main>
+        <div class="banner" x-show="error"><span x-text="error"></span><button @click="loadMes(); error=''">Reintentar</button></div>
+        <div class="banner ok" x-show="flash"><span x-text="flash"></span><button @click="flash=''">✕</button></div>
+        <div class="skeleton" x-show="loading">Cargando…</div>
+
+        <!-- ======== CARGAR ======== -->
+        <div x-show="!loading && view==='cargar'">
+          <div class="seg">
+            <button :class="form.tipo==='gasto' ? 'on-gasto' : ''" @click="form.tipo='gasto'">Gasto</button>
+            <button :class="form.tipo==='ingreso' ? 'on-ingreso' : ''" @click="form.tipo='ingreso'">Ingreso</button>
+          </div>
+
+          <input class="monto" type="text" inputmode="decimal" x-model="form.monto" placeholder="$ 0">
+
+          <label class="f">Fecha</label>
+          <input type="date" x-model="form.fecha">
+
+          <template x-if="form.tipo==='gasto'">
+            <div>
+              <label class="f">Categoría</label>
+              <div class="cats">
+                <template x-for="c in categorias" :key="c.id">
+                  <button :class="{on: form.categoria_id===c.id}" @click="form.categoria_id=c.id">
+                    <i class="dot" :style="'background:'+c.color"></i><span x-text="c.nombre"></span>
+                  </button>
+                </template>
+                <button :class="{on: nuevaCat}" @click="nuevaCat=!nuevaCat; form.categoria_id=null">＋ Nueva</button>
+              </div>
+              <div x-show="nuevaCat" style="margin-top:8px">
+                <input type="text" x-model="nuevaCatNombre" placeholder="Nombre de la categoría">
+              </div>
+              <label class="f">Método de pago</label>
+              <select x-model="form.metodo">
+                <option value="efectivo">Efectivo</option>
+                <option value="debito">Débito</option>
+                <option value="credito">Crédito</option>
+                <option value="transferencia">Transferencia</option>
+                <option value="mercadopago">Mercado Pago</option>
+              </select>
+            </div>
+          </template>
+
+          <label class="f">Detalle (opcional)</label>
+          <input type="text" x-model="form.detalle" :placeholder="form.tipo==='gasto' ? 'Ej: supermercado' : 'Ej: sueldo'">
+
+          <button class="btn" :class="form.tipo==='gasto' ? 'btn-gasto' : 'btn-ingreso'"
+            @click="guardar()" :disabled="busy"
+            x-text="(editando ? 'Guardar cambios' : 'Cargar ') + form.tipo"></button>
+          <button class="btn-ghost" x-show="editando" @click="resetForm()">Cancelar edición</button>
+        </div>
+
+        <!-- ======== MOVIMIENTOS ======== -->
+        <div x-show="!loading && view==='movimientos'">
+          <div class="empty" x-show="movimientos.length===0">
+            <b>Todavía no hay movimientos este mes</b>
+            Cargá el primero desde la pestaña Cargar.
+          </div>
+          <template x-for="grupo in movimientosAgrupados" :key="grupo.dia">
+            <div>
+              <div class="dia" x-text="grupo.dia"></div>
+              <template x-for="m in grupo.items" :key="m.tipo + m.id">
+                <div class="mov" @click="editar(m)">
+                  <i class="dot" :style="'background:' + (m.categorias?.color || 'var(--green)')"
+                     x-show="m.tipo==='gasto'"></i>
+                  <i class="dot" :style="'background:var(--green)'" x-show="m.tipo==='ingreso'"></i>
+                  <div class="info">
+                    <div class="t" x-text="m.detalle || m.categorias?.nombre || (m.tipo==='ingreso' ? 'Ingreso' : 'Sin detalle')"></div>
+                    <div class="s" x-text="[m.categorias?.nombre, metodoLabel(m.metodo), m.profiles?.nombre].filter(Boolean).join(' · ')"></div>
+                  </div>
+                  <div class="m" :class="m.tipo==='gasto' ? 'neg' : 'pos'"
+                    x-text="(m.tipo==='gasto' ? '−' : '+') + fmt(m.monto)"></div>
+                  <button class="del" :class="{arm: confirmDelete === (m.tipo+m.id)}"
+                    @click.stop="borrar(m)"
+                    x-text="confirmDelete === (m.tipo+m.id) ? '¿Sí?' : '✕'"></button>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+
+        <!-- ======== RESUMEN ======== -->
+        <div x-show="!loading && view==='resumen'">
+          <div class="card">
+            <h3>Balance del mes</h3>
+            <div class="balance">
+              <div><b style="color:var(--green)" x-text="fmt(totalIngresos)"></b><span>Ingresos</span></div>
+              <div><b style="color:var(--red)" x-text="fmt(totalGastos)"></b><span>Gastos</span></div>
+              <div><b :style="'color:' + (totalIngresos - totalGastos >= 0 ? 'var(--green)' : 'var(--red)')"
+                x-text="fmt(totalIngresos - totalGastos)"></b><span>Restan</span></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Por categoría</h3>
+            <div class="empty" x-show="porCategoria.length===0" style="padding:14px">Sin gastos en el mes.</div>
+            <template x-for="c in porCategoria" :key="c.nombre">
+              <div class="bar">
+                <div class="n"><i class="dot" :style="'background:'+c.color"></i><span x-text="c.nombre"></span></div>
+                <div class="track"><i :style="'width:'+c.pct+'%;background:'+c.color"></i></div>
+                <div class="v" x-text="fmt(c.total)"></div>
+              </div>
+            </template>
+          </div>
+
+          <div class="card">
+            <h3>Por método de pago</h3>
+            <template x-for="c in porMetodo" :key="c.nombre">
+              <div class="bar">
+                <div class="n"><span x-text="c.nombre"></span></div>
+                <div class="track"><i :style="'width:'+c.pct+'%;background:var(--brand)'"></i></div>
+                <div class="v" x-text="fmt(c.total)"></div>
+              </div>
+            </template>
+            <div class="empty" x-show="porMetodo.length===0" style="padding:14px">Sin gastos en el mes.</div>
+          </div>
+
+          <div class="card">
+            <h3>Quién cargó</h3>
+            <template x-for="c in porPersona" :key="c.nombre">
+              <div class="bar">
+                <div class="n"><span x-text="c.nombre"></span></div>
+                <div class="track"><i :style="'width:'+c.pct+'%;background:var(--brand-dark)'"></i></div>
+                <div class="v" x-text="fmt(c.total)"></div>
+              </div>
+            </template>
+          </div>
+
+          <div class="card">
+            <h3>Presupuesto mensual</h3>
+            <div class="row2">
+              <input type="text" inputmode="numeric" x-model="presupuestoInput" placeholder="Ej: 1500000">
+              <button class="btn btn-brand" style="margin-top:0" @click="guardarPresupuesto()" :disabled="busy">Guardar</button>
+            </div>
+            <p style="font-size:12px;color:var(--s500);margin-top:8px">
+              Sirve de techo orientativo: la barra del encabezado muestra cuánto llevan gastado.
+            </p>
+          </div>
+
+          <button class="btn-ghost" @click="exportCSV()">⬇ Exportar mes a CSV (Excel)</button>
+        </div>
+      </main>
+
+      <nav><div class="inner">
+        <button :class="{on: view==='cargar'}" @click="view='cargar'"><span class="i">＋</span>Cargar</button>
+        <button :class="{on: view==='movimientos'}" @click="view='movimientos'"><span class="i">≡</span>Movimientos</button>
+        <button :class="{on: view==='resumen'}" @click="view='resumen'"><span class="i">◔</span>Resumen</button>
+      </div></nav>
+    </div>
+  </template>
+</div>
+
+<script>
+const CFG = window.FINANZAS_CONFIG || {};
+let _sb = null;
+async function sb() {
+  if (!_sb) {
+    const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/+esm');
+    _sb = createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+  }
+  return _sb;
+}
+const fmt = n => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n || 0);
+const hoy = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const isoLocal = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const METODOS = { efectivo: 'Efectivo', debito: 'Débito', credito: 'Crédito', transferencia: 'Transferencia', mercadopago: 'Mercado Pago' };
+
+function app() {
+  return {
+    session: null, profile: null, view: 'cargar',
+    mesCursor: new Date(), gastos: [], ingresos: [], categorias: [],
+    presupuesto: 0, presupuestoInput: '',
+    form: { tipo: 'gasto', monto: '', fecha: hoy(), categoria_id: null, metodo: 'efectivo', detalle: '' },
+    editando: null, nuevaCat: false, nuevaCatNombre: '',
+    loginEmail: '', loginPass: '',
+    loading: false, busy: false, error: '', flash: '', confirmDelete: null,
+
+    async init() {
+      if (!CFG.SUPABASE_URL || CFG.SUPABASE_URL.includes('TU-PROYECTO')) {
+        this.error = 'Falta configurar Supabase: editá config.js con la URL y la anon key del proyecto.';
+        return;
+      }
+      const c = await sb();
+      const { data } = await c.auth.getSession();
+      this.session = data.session;
+      c.auth.onAuthStateChange((_e, s) => { this.session = s; if (s) this.loadAll(); });
+      if (this.session) await this.loadAll();
+    },
+
+    async doLogin() {
+      this.busy = true; this.error = '';
+      const { error } = await (await sb()).auth.signInWithPassword({ email: this.loginEmail, password: this.loginPass });
+      this.busy = false;
+      if (error) this.error = 'No se pudo ingresar: ' + error.message;
+    },
+    async doLogout() { await (await sb()).auth.signOut(); this.session = null; },
+
+    get esMesActual() {
+      const n = new Date();
+      return this.mesCursor.getFullYear() === n.getFullYear() && this.mesCursor.getMonth() === n.getMonth();
+    },
+    get mesLabel() { return MESES[this.mesCursor.getMonth()] + ' ' + this.mesCursor.getFullYear(); },
+    get mesRango() {
+      const d = this.mesCursor;
+      const ini = isoLocal(new Date(d.getFullYear(), d.getMonth(), 1));
+      const fin = isoLocal(new Date(d.getFullYear(), d.getMonth() + 1, 1));
+      return { ini, fin };
+    },
+    cambiarMes(delta) {
+      this.mesCursor = new Date(this.mesCursor.getFullYear(), this.mesCursor.getMonth() + delta, 1);
+      this.loadMes();
+    },
+
+    async loadAll() {
+      const c = await sb();
+      const [{ data: p }, { data: cats }, { data: aj }] = await Promise.all([
+        c.from('profiles').select('*').eq('id', this.session.user.id).single(),
+        c.from('categorias').select('*').order('nombre'),
+        c.from('ajustes').select('*'),
+      ]);
+      this.profile = p;
+      this.categorias = cats || [];
+      const pres = (aj || []).find(a => a.clave === 'presupuesto_mensual');
+      this.presupuesto = pres ? +pres.valor : 0;
+      this.presupuestoInput = this.presupuesto || '';
+      await this.loadMes();
+    },
+
+    async loadMes() {
+      this.loading = true; this.error = '';
+      const c = await sb();
+      const { ini, fin } = this.mesRango;
+      const sel = '*, categorias(nombre,color), profiles(nombre)';
+      const [{ data: g, error: e1 }, { data: i, error: e2 }] = await Promise.all([
+        c.from('gastos').select(sel).gte('fecha', ini).lt('fecha', fin).order('fecha', { ascending: false }).order('id', { ascending: false }),
+        c.from('ingresos').select('*, profiles(nombre)').gte('fecha', ini).lt('fecha', fin).order('fecha', { ascending: false }).order('id', { ascending: false }),
+      ]);
+      this.loading = false;
+      if (e1 || e2) { this.error = 'Error cargando datos: ' + (e1 || e2).message; return; }
+      this.gastos = (g || []).map(x => ({ ...x, tipo: 'gasto' }));
+      this.ingresos = (i || []).map(x => ({ ...x, tipo: 'ingreso' }));
+    },
+
+    parseMonto(v) { return parseFloat(String(v).replace(/\./g, '').replace(',', '.')); },
+
+    async guardar() {
+      const monto = this.parseMonto(this.form.monto);
+      if (!monto || monto <= 0) { this.error = 'Ingresá un monto válido.'; return; }
+      if (!this.form.fecha) { this.error = 'Elegí una fecha.'; return; }
+      this.busy = true; this.error = '';
+      const c = await sb();
+
+      let catId = this.form.categoria_id;
+      if (this.form.tipo === 'gasto' && this.nuevaCat && this.nuevaCatNombre.trim()) {
+        const { data: nc, error: ec } = await c.from('categorias')
+          .insert({ nombre: this.nuevaCatNombre.trim() }).select().single();
+        if (ec) { this.error = ec.message; this.busy = false; return; }
+        this.categorias.push(nc); this.categorias.sort((a, b) => a.nombre.localeCompare(b.nombre));
+        catId = nc.id;
+      }
+
+      const tabla = this.form.tipo === 'gasto' ? 'gastos' : 'ingresos';
+      const row = this.form.tipo === 'gasto'
+        ? { fecha: this.form.fecha, monto, categoria_id: catId, metodo: this.form.metodo, detalle: this.form.detalle || null }
+        : { fecha: this.form.fecha, monto, detalle: this.form.detalle || null };
+
+      const { error } = this.editando
+        ? await c.from(tabla).update(row).eq('id', this.editando.id)
+        : await c.from(tabla).insert(row);
+      this.busy = false;
+      if (error) { this.error = error.message; return; }
+
+      // Si el movimiento pertenece a otro mes, avisar.
+      const { ini, fin } = this.mesRango;
+      this.flash = this.form.fecha >= ini && this.form.fecha < fin
+        ? '' : 'Guardado. Ojo: la fecha es de otro mes, no aparece en esta vista.';
+      this.resetForm();
+      await this.loadMes();
+    },
+
+    editar(m) {
+      this.editando = { id: m.id, tipo: m.tipo };
+      this.form = {
+        tipo: m.tipo, monto: String(m.monto), fecha: m.fecha,
+        categoria_id: m.categoria_id || null, metodo: m.metodo || 'efectivo',
+        detalle: m.detalle || '',
+      };
+      this.view = 'cargar';
+      window.scrollTo(0, 0);
+    },
+
+    resetForm() {
+      this.editando = null; this.nuevaCat = false; this.nuevaCatNombre = '';
+      this.form = { tipo: 'gasto', monto: '', fecha: hoy(), categoria_id: null, metodo: 'efectivo', detalle: '' };
+    },
+
+    async borrar(m) {
+      const key = m.tipo + m.id;
+      if (this.confirmDelete !== key) { this.confirmDelete = key; setTimeout(() => this.confirmDelete = null, 3000); return; }
+      this.confirmDelete = null;
+      const { error } = await (await sb()).from(m.tipo === 'gasto' ? 'gastos' : 'ingresos').delete().eq('id', m.id);
+      if (error) { this.error = error.message; return; }
+      await this.loadMes();
+    },
+
+    async guardarPresupuesto() {
+      const v = this.parseMonto(this.presupuestoInput) || 0;
+      this.busy = true;
+      const { error } = await (await sb()).from('ajustes').upsert({ clave: 'presupuesto_mensual', valor: String(v) });
+      this.busy = false;
+      if (error) { this.error = error.message; return; }
+      this.presupuesto = v;
+      this.flash = 'Presupuesto actualizado.';
+    },
+
+    metodoLabel(m) { return METODOS[m] || ''; },
+
+    get totalGastos() { return this.gastos.reduce((s, x) => s + +x.monto, 0); },
+    get totalIngresos() { return this.ingresos.reduce((s, x) => s + +x.monto, 0); },
+
+    get movimientos() {
+      return [...this.gastos, ...this.ingresos]
+        .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id - a.id);
+    },
+    get movimientosAgrupados() {
+      const grupos = [];
+      for (const m of this.movimientos) {
+        const d = new Date(m.fecha + 'T12:00:00');
+        const dia = d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
+        const g = grupos.find(x => x.dia === dia);
+        g ? g.items.push(m) : grupos.push({ dia, items: [m] });
+      }
+      return grupos;
+    },
+    get porCategoria() {
+      const acc = {};
+      for (const g of this.gastos) {
+        const k = g.categorias?.nombre || 'Sin categoría';
+        acc[k] = acc[k] || { nombre: k, color: g.categorias?.color || '#94a3b8', total: 0 };
+        acc[k].total += +g.monto;
+      }
+      const arr = Object.values(acc).sort((a, b) => b.total - a.total);
+      const max = arr[0]?.total || 1;
+      return arr.map(x => ({ ...x, pct: Math.round(x.total / max * 100) }));
+    },
+    get porMetodo() {
+      const acc = {};
+      for (const g of this.gastos) {
+        const k = METODOS[g.metodo] || g.metodo;
+        acc[k] = (acc[k] || 0) + +g.monto;
+      }
+      const arr = Object.entries(acc).map(([nombre, total]) => ({ nombre, total })).sort((a, b) => b.total - a.total);
+      const max = arr[0]?.total || 1;
+      return arr.map(x => ({ ...x, pct: Math.round(x.total / max * 100) }));
+    },
+    get porPersona() {
+      const acc = {};
+      for (const g of this.gastos) {
+        const k = g.profiles?.nombre || 'Desconocido';
+        acc[k] = (acc[k] || 0) + +g.monto;
+      }
+      const arr = Object.entries(acc).map(([nombre, total]) => ({ nombre, total })).sort((a, b) => b.total - a.total);
+      const max = arr[0]?.total || 1;
+      return arr.map(x => ({ ...x, pct: Math.round(x.total / max * 100) }));
+    },
+
+    exportCSV() {
+      const rows = [['fecha', 'tipo', 'monto', 'categoria', 'metodo', 'detalle', 'cargado_por']];
+      for (const g of this.gastos)
+        rows.push([g.fecha, 'gasto', g.monto, g.categorias?.nombre || '', g.metodo, g.detalle || '', g.profiles?.nombre || '']);
+      for (const i of this.ingresos)
+        rows.push([i.fecha, 'ingreso', i.monto, '', '', i.detalle || '', i.profiles?.nombre || '']);
+      const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+      a.download = `finanzas-${this.mesRango.ini.slice(0, 7)}.csv`;
+      a.click();
+    },
+  };
+}
+</script>
+</body>
+</html>
