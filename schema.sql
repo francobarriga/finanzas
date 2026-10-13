@@ -37,6 +37,15 @@ create table if not exists public.ingresos (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.deudas (
+  id bigint generated always as identity primary key,
+  nombre text not null unique,
+  total numeric(12,2) not null check (total > 0),
+  saldo numeric(12,2) not null default 0 check (saldo >= 0),
+  nota text,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.ajustes (
   clave text primary key,
   valor text not null
@@ -90,6 +99,7 @@ alter table public.categorias enable row level security;
 alter table public.gastos enable row level security;
 alter table public.ingresos enable row level security;
 alter table public.ajustes enable row level security;
+alter table public.deudas enable row level security;
 
 drop policy if exists "profiles read" on public.profiles;
 create policy "profiles read" on public.profiles
@@ -124,4 +134,11 @@ create policy "ajustes read" on public.ajustes
   for select to authenticated using (true);
 drop policy if exists "ajustes write" on public.ajustes;
 create policy "ajustes write" on public.ajustes
+  for all to authenticated using (true) with check (true);
+
+drop policy if exists "deudas read" on public.deudas;
+create policy "deudas read" on public.deudas
+  for select to authenticated using (true);
+drop policy if exists "deudas write" on public.deudas;
+create policy "deudas write" on public.deudas
   for all to authenticated using (true) with check (true);

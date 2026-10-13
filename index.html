@@ -265,6 +265,10 @@
 
         <!-- ======== RESUMEN ======== -->
         <div x-show="!loading && view==='resumen'">
+          <div class="card" x-show="totalDeuda > 0">
+            <h3>Deuda pendiente total</h3>
+            <div style="font-size:22px;font-weight:800;color:var(--red);font-variant-numeric:tabular-nums" x-text="fmt(totalDeuda)"></div>
+          </div>
           <div class="card">
             <h3>Balance del mes</h3>
             <div class="balance">
@@ -323,12 +327,62 @@
 
           <button class="btn-ghost" @click="exportCSV()">⬇ Exportar mes a CSV (Excel)</button>
         </div>
+
+        <!-- ======== DEUDAS ======== -->
+        <div x-show="!loading && view==='deudas'">
+          <div class="card">
+            <h3>Deuda pendiente total</h3>
+            <div style="font-size:28px;font-weight:800;color:var(--red);font-variant-numeric:tabular-nums" x-text="fmt(totalDeuda)"></div>
+          </div>
+
+          <template x-for="d in deudas" :key="d.id">
+            <div class="card" style="margin-bottom:8px;padding:12px 14px">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+                <div style="min-width:0" @click="editarDeuda(d)">
+                  <div style="font-weight:600;font-size:14px" x-text="d.nombre"></div>
+                  <div style="font-size:12px;color:var(--s500);font-variant-numeric:tabular-nums"
+                    x-text="fmt(d.saldo) + ' de ' + fmt(d.total)"></div>
+                </div>
+                <div style="display:flex;gap:6px;flex:none">
+                  <button class="del" style="width:auto;padding:0 12px;background:#e8f3fe;color:var(--brand);font-weight:700"
+                    @click="pagandoId = pagandoId===d.id ? null : d.id; pagoMonto=''">Pagar</button>
+                  <button class="del" :class="{arm: confirmDelete === 'd'+d.id}" @click="borrarDeuda(d)"
+                    x-text="confirmDelete === 'd'+d.id ? '¿Sí?' : '✕'"></button>
+                </div>
+              </div>
+              <div style="height:8px;background:var(--s100);border-radius:99px;margin-top:8px;overflow:hidden">
+                <i :style="'display:block;height:100%;border-radius:99px;background:' + (d.saldo<=0 ? 'var(--green)' : 'var(--brand)') + ';width:' + (d.total>0 ? Math.min(100,(d.total-d.saldo)/d.total*100) : 0) + '%'"></i>
+              </div>
+              <div x-show="pagandoId===d.id" class="row2" style="margin-top:10px">
+                <input type="text" inputmode="decimal" x-model="pagoMonto" placeholder="Monto del pago">
+                <button class="btn btn-brand" style="margin-top:0" @click="pagarDeuda(d)" :disabled="busy">Registrar</button>
+              </div>
+            </div>
+          </template>
+
+          <div class="empty" x-show="deudas.length===0">
+            <b>Sin deudas cargadas</b>
+            Corré deudas.sql en Supabase o agregá una abajo.
+          </div>
+
+          <div class="card">
+            <h3 x-text="editandoDeuda ? 'Editar deuda' : 'Nueva deuda'"></h3>
+            <div class="row2">
+              <input type="text" x-model="deudaForm.nombre" placeholder="A quién / qué">
+              <input type="text" inputmode="decimal" x-model="deudaForm.monto" :placeholder="editandoDeuda ? 'Saldo actual' : 'Monto'">
+            </div>
+            <button class="btn btn-brand" @click="guardarDeuda()" :disabled="busy"
+              x-text="editandoDeuda ? 'Guardar cambios' : 'Agregar deuda'"></button>
+            <button class="btn-ghost" x-show="editandoDeuda" @click="resetDeuda()">Cancelar edición</button>
+          </div>
+        </div>
       </main>
 
       <nav><div class="inner">
         <button :class="{on: view==='cargar'}" @click="view='cargar'"><span class="i">＋</span>Cargar</button>
         <button :class="{on: view==='movimientos'}" @click="view='movimientos'"><span class="i">≡</span>Movimientos</button>
         <button :class="{on: view==='resumen'}" @click="view='resumen'"><span class="i">◔</span>Resumen</button>
+        <button :class="{on: view==='deudas'}" @click="view='deudas'"><span class="i">∑</span>Deudas</button>
       </div></nav>
     </div>
   </template>
@@ -353,7 +407,8 @@ const METODOS = { efectivo: 'Efectivo', debito: 'Débito', credito: 'Crédito', 
 function app() {
   return {
     session: null, profile: null, view: 'cargar',
-    mesCursor: new Date(), gastos: [], ingresos: [], categorias: [],
+    mesCursor: new Date(), gastos: [], ingresos: [], categorias: [], deudas: [],
+    deudaForm: { nombre: '', monto: '' }, editandoDeuda: null, pagandoId: null, pagoMonto: '',
     presupuesto: 0, presupuestoInput: '',
     form: { tipo: 'gasto', monto: '', fecha: hoy(), categoria_id: null, metodo: 'efectivo', detalle: '' },
     editando: null, nuevaCat: false, nuevaCatNombre: '',
@@ -398,13 +453,15 @@ function app() {
 
     async loadAll() {
       const c = await sb();
-      const [{ data: p }, { data: cats }, { data: aj }] = await Promise.all([
+      const [{ data: p }, { data: cats }, { data: aj }, { data: dd }] = await Promise.all([
         c.from('profiles').select('*').eq('id', this.session.user.id).single(),
         c.from('categorias').select('*').order('nombre'),
         c.from('ajustes').select('*'),
+        c.from('deudas').select('*').order('saldo', { ascending: false }),
       ]);
       this.profile = p;
       this.categorias = cats || [];
+      this.deudas = dd || [];
       const pres = (aj || []).find(a => a.clave === 'presupuesto_mensual');
       this.presupuesto = pres ? +pres.valor : 0;
       this.presupuestoInput = this.presupuesto || '';
@@ -499,6 +556,62 @@ function app() {
     },
 
     metodoLabel(m) { return METODOS[m] || ''; },
+
+    get totalDeuda() { return this.deudas.reduce((s, d) => s + +d.saldo, 0); },
+
+    async guardarDeuda() {
+      const nombre = this.deudaForm.nombre.trim();
+      const monto = this.parseMonto(this.deudaForm.monto);
+      if (!nombre) { this.error = 'Poné un nombre a la deuda.'; return; }
+      if (!monto || monto < 0) { this.error = 'Ingresá un monto válido.'; return; }
+      this.busy = true; this.error = '';
+      const c = await sb();
+      const { error } = this.editandoDeuda
+        ? await c.from('deudas').update({ nombre, saldo: monto }).eq('id', this.editandoDeuda)
+        : await c.from('deudas').insert({ nombre, total: monto, saldo: monto });
+      this.busy = false;
+      if (error) { this.error = error.message; return; }
+      this.resetDeuda();
+      await this.loadAll();
+    },
+
+    editarDeuda(d) {
+      this.editandoDeuda = d.id;
+      this.deudaForm = { nombre: d.nombre, monto: String(d.saldo) };
+      window.scrollTo(0, document.body.scrollHeight);
+    },
+
+    resetDeuda() { this.editandoDeuda = null; this.deudaForm = { nombre: '', monto: '' }; },
+
+    async pagarDeuda(d) {
+      const monto = this.parseMonto(this.pagoMonto);
+      if (!monto || monto <= 0) { this.error = 'Monto de pago inválido.'; return; }
+      this.busy = true; this.error = '';
+      const c = await sb();
+      const cat = this.categorias.find(x => x.nombre === 'Préstamos');
+      const { error: e1 } = await c.from('gastos').insert({
+        fecha: hoy(), monto, categoria_id: cat ? cat.id : null,
+        metodo: 'transferencia', detalle: 'Pago deuda: ' + d.nombre,
+      });
+      if (!e1) {
+        const { error: e2 } = await c.from('deudas')
+          .update({ saldo: Math.max(0, +d.saldo - monto) }).eq('id', d.id);
+        if (e2) this.error = e2.message;
+      } else this.error = e1.message;
+      this.busy = false;
+      this.pagandoId = null; this.pagoMonto = '';
+      if (!this.error) this.flash = 'Pago registrado y saldo actualizado.';
+      await this.loadAll();
+    },
+
+    async borrarDeuda(d) {
+      const key = 'd' + d.id;
+      if (this.confirmDelete !== key) { this.confirmDelete = key; setTimeout(() => this.confirmDelete = null, 3000); return; }
+      this.confirmDelete = null;
+      const { error } = await (await sb()).from('deudas').delete().eq('id', d.id);
+      if (error) { this.error = error.message; return; }
+      await this.loadAll();
+    },
 
     get totalGastos() { return this.gastos.reduce((s, x) => s + +x.monto, 0); },
     get totalIngresos() { return this.ingresos.reduce((s, x) => s + +x.monto, 0); },

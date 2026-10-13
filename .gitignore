@@ -6,3 +6,4 @@ node_modules/
 gastos.csv
 import.sql
 setup.sql
+deudas.sql
