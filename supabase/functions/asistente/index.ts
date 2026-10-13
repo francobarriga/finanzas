@@ -7,6 +7,7 @@
 //
 // Modes (POST JSON):
 //   { mode: 'chat',        pregunta, mes: 'YYYY-MM' }            → { texto }
+//   { mode: 'analisis',    mes: 'YYYY-MM' }                      → { texto }
 //   { mode: 'texto',       texto, categorias: [nombres] }        → { items }
 //   { mode: 'categorizar', detalles: [...], categorias: [...] }  → { categorias }
 //   { mode: 'pdf',         lineas: '...texto crudo...' }         → { items }
@@ -86,8 +87,8 @@ Devolvé JSON: {"categorias": ["...", "..."]} con un elemento por detalle, en el
       return json(JSON.parse(out));
     }
 
-    if (body.mode === 'chat') {
-      const [ini, fin] = [`${body.mes}-01`, null];
+    if (body.mode === 'chat' || body.mode === 'analisis') {
+      const ini = `${body.mes}-01`;
       const d = new Date(ini + 'T00:00:00');
       const finMes = new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString().slice(0, 10);
       const sel = 'fecha, monto, detalle, metodo, categorias(nombre), profiles(nombre)';
@@ -106,9 +107,30 @@ Devolvé JSON: {"categorias": ["...", "..."]} con un elemento por detalle, en el
         deudas: dd.data || [],
         presupuesto_mensual: (aj.data || []).find((a: any) => a.clave === 'presupuesto_mensual')?.valor || 'sin definir',
       };
+      if (body.mode === 'chat') {
+        const out = await gemini(
+          `Sos un asistente de finanzas de un hogar argentino. Respondés en español rioplatense, breve y concreto, con los números reales del contexto (montos en ARS). Datos del mes consultado: ${JSON.stringify(ctx)}`,
+          String(body.pregunta || '').slice(0, 1000),
+        );
+        return json({ texto: out });
+      }
+      if (!ctx.gastos.length && !ctx.ingresos.length) {
+        return json({ texto: '' });
+      }
       const out = await gemini(
-        `Sos un asistente de finanzas de un hogar argentino. Respondés en español rioplatense, breve y concreto, con los números reales del contexto (montos en ARS). Datos del mes consultado: ${JSON.stringify(ctx)}`,
-        String(body.pregunta || '').slice(0, 1000),
+        `Sos un asesor de finanzas hogareñas de una pareja argentina que quiere dejar de perder visibilidad de su plata. Respondés en español rioplatense, tono cercano pero directo, montos en formato argentino ($ 1.234.567). Estructurá la respuesta EXACTAMENTE así:
+
+📊 En números
+Balance del mes (ingresos vs gastos) y % del presupuesto usado si existe.
+
+🔍 Qué detecté
+3 a 5 hallazgos concretos con montos reales: categoría dominante, suscripciones o gastos recurrentes, quién concentró más gasto, cuotas, cargos bancarios/impuestos, consumos en dólares.
+
+💡 Recomendaciones
+3 acciones concretas para el mes que arranca, ordenadas por impacto.
+
+Máximo 300 palabras, sin markdown con #, usá saltos de línea y los emojis de sección indicados.`,
+        `Datos completos del mes a analizar: ${JSON.stringify(ctx)}`,
       );
       return json({ texto: out });
     }

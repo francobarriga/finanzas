@@ -370,6 +370,14 @@
 
         <!-- ======== ASISTENTE ======== -->
         <div x-show="!loading && view==='asistente'">
+          <div class="card" x-show="analisis || analisisBusy">
+            <h3 style="display:flex;justify-content:space-between;align-items:center">
+              <span>📊 Análisis de <span x-text="mesAnterior.label"></span></span>
+              <button class="btn-ghost" style="margin:0;padding:4px 10px;width:auto" @click="generarAnalisis()" :disabled="analisisBusy" title="Volver a generar">↻</button>
+            </h3>
+            <div class="skeleton" x-show="analisisBusy">Analizando el mes anterior…</div>
+            <p x-show="!analisisBusy" style="font-size:14px;line-height:1.6;white-space:pre-wrap;margin:0;color:var(--s700)" x-text="analisis"></p>
+          </div>
           <div class="card" x-show="chat.length===0">
             <h3>Asistente</h3>
             <p style="font-size:13px;color:var(--s500)">Preguntá sobre el mes que estás viendo arriba: "¿en qué gastamos más?", "¿cuánto nos queda del presupuesto?", "¿cuánto debemos en total?"</p>
@@ -426,6 +434,7 @@ function app() {
     editando: null, nuevaCat: false, nuevaCatNombre: '',
     loginEmail: '', loginPass: '',
     loading: false, busy: false, error: '', flash: '', confirmDelete: null,
+    analisis: '', analisisMes: '', analisisBusy: false,
 
     async init() {
       if (!CFG.SUPABASE_URL || CFG.SUPABASE_URL.includes('TU-PROYECTO')) {
@@ -477,7 +486,10 @@ function app() {
       const pres = (aj || []).find(a => a.clave === 'presupuesto_mensual');
       this.presupuesto = pres ? +pres.valor : 0;
       this.presupuestoInput = this.presupuesto || '';
+      this.analisisMes = (aj || []).find(a => a.clave === 'analisis_mes')?.valor || '';
+      this.analisis = (aj || []).find(a => a.clave === 'analisis_texto')?.valor || '';
       await this.loadMes();
+      this.checkAnalisis();
     },
 
     async loadMes() {
@@ -590,6 +602,30 @@ function app() {
       return data;
     },
     catByName(n) { return (this.categorias.find(c => c.nombre === n) || {}).id || null; },
+
+    get mesAnterior() {
+      const d = new Date(); d.setMonth(d.getMonth() - 1);
+      return { key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, label: MESES[d.getMonth()] + ' ' + d.getFullYear() };
+    },
+    checkAnalisis() {
+      if (this.analisisMes !== this.mesAnterior.key) this.generarAnalisis();
+    },
+    async generarAnalisis() {
+      if (this.analisisBusy) return;
+      const mes = this.mesAnterior.key;
+      this.analisisBusy = true;
+      try {
+        const r = await this.ia('analisis', { mes });
+        this.analisisMes = mes;
+        this.analisis = r.texto || '';
+        await (await sb()).from('ajustes').upsert([
+          { clave: 'analisis_mes', valor: mes },
+          { clave: 'analisis_texto', valor: this.analisis },
+        ]);
+        if (this.analisis) this.flash = '✦ Análisis mensual listo en Asistente';
+      } catch { /* sin IA: se reintenta la próxima vez que abran la app */ }
+      this.analisisBusy = false;
+    },
 
     async preguntar() {
       const q = this.chatInput.trim();
