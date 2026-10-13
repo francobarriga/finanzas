@@ -46,6 +46,20 @@ Para publicar cambios: `git add . && git commit -m "..." && git push`.
 > Tip: en el celular, "Agregar a pantalla de inicio" desde el navegador
 > y queda como app.
 
+## Asistente IA (opcional)
+La app puede consultar a Gemini vía la Edge Function `supabase/functions/asistente`:
+chat sobre las finanzas del mes, carga por texto libre ("45 mil de nafta y
+12 de farmacia"), categorización automática de consumos y parseo de PDFs
+de formato desconocido.
+
+Setup:
+1. Crear API key gratis en https://aistudio.google.com → **Get API key**.
+2. Supabase → **Edge Functions → Deploy new function** → nombre `asistente`
+   → pegar el contenido de `supabase/functions/asistente/index.ts` → Deploy.
+   (o con CLI: `npx supabase functions deploy asistente --project-ref jnxspfmfksobixumsowb`)
+3. Edge Functions → **Secrets** → `GEMINI_API_KEY` = la key del paso 1.
+   (o `npx supabase secrets set GEMINI_API_KEY=...`)
+
 ## Uso
 - **Cargar**: gasto o ingreso, monto, fecha, categoría (se pueden crear nuevas
   con "＋ Nueva"), método de pago y detalle.
