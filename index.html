@@ -597,7 +597,11 @@ function app() {
     async ia(mode, body) {
       const c = await sb();
       const { data, error } = await c.functions.invoke('super-service', { body: { mode, ...body } });
-      if (error) throw new Error(error.message);
+      if (error) {
+        let detalle = error.message;
+        try { const b = await error.context.json(); if (b && b.error) detalle = b.error; } catch {}
+        throw new Error(detalle);
+      }
       if (data && data.error) throw new Error(data.error);
       return data;
     },
