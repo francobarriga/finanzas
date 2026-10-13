@@ -1,3 +1,7 @@
 Thumbs.db
 .DS_Store
 node_modules/
+
+# Datos privados — el repo es público, no commitear
+gastos.csv
+import.sql
