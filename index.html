@@ -234,6 +234,9 @@
           <button class="btn-ghost" x-show="editando" @click="resetForm()">Cancelar edición</button>
 
           <div style="text-align:center;margin-top:22px;border-top:1px solid var(--s200);padding-top:16px">
+            <input type="text" x-model="textoLibre" style="margin-bottom:8px"
+              placeholder='Ej: "45 mil de nafta y 12 de farmacia"'>
+            <button class="btn-ghost" style="margin-top:0" @click="cargarTexto()" :disabled="busy">✦ Cargar con IA</button>
             <button class="btn-ghost" style="margin-top:0" @click="$refs.pdf.click()">📄 Importar resumen de tarjeta (PDF)</button>
             <input type="file" accept=".pdf" x-ref="pdf" style="display:none" @change="leerPdf($event)">
           </div>
@@ -416,6 +419,26 @@
             <button class="btn-ghost" x-show="editandoDeuda" @click="resetDeuda()">Cancelar edición</button>
           </div>
         </div>
+
+        <!-- ======== ASISTENTE ======== -->
+        <div x-show="!loading && view==='asistente'">
+          <div class="card" x-show="chat.length===0">
+            <h3>Asistente</h3>
+            <p style="font-size:13px;color:var(--s500)">Preguntá sobre el mes que estás viendo arriba: "¿en qué gastamos más?", "¿cuánto nos queda del presupuesto?", "¿cuánto debemos en total?"</p>
+          </div>
+          <template x-for="m in chat" :key="m.t">
+            <div :style="m.yo ? 'text-align:right' : ''">
+              <div :style="(m.yo ? 'background:var(--brand);color:#fff' : 'background:#fff;border:1px solid var(--s200)') + ';display:inline-block;max-width:88%;text-align:left;border-radius:14px;padding:10px 14px;margin-bottom:8px;font-size:14px;white-space:pre-wrap'"
+                x-text="m.texto"></div>
+            </div>
+          </template>
+          <div class="skeleton" x-show="busy && chat.length">Pensando…</div>
+          <div class="card" style="display:flex;gap:8px">
+            <input type="text" x-model="chatInput" placeholder="Ej: ¿en qué se nos fue la plata?"
+              @keydown.enter="preguntar()" style="flex:1">
+            <button class="btn btn-brand" style="width:auto;margin:0;padding:10px 16px" @click="preguntar()" :disabled="busy">➤</button>
+          </div>
+        </div>
       </main>
 
       <nav><div class="inner">
@@ -423,6 +446,7 @@
         <button :class="{on: view==='movimientos'}" @click="view='movimientos'"><span class="i">≡</span>Movimientos</button>
         <button :class="{on: view==='resumen'}" @click="view='resumen'"><span class="i">◔</span>Resumen</button>
         <button :class="{on: view==='deudas'}" @click="view='deudas'"><span class="i">∑</span>Deudas</button>
+        <button :class="{on: view==='asistente'}" @click="view='asistente'"><span class="i">✦</span>Asistente</button>
       </div></nav>
     </div>
   </template>
@@ -450,6 +474,7 @@ function app() {
     mesCursor: new Date(), gastos: [], ingresos: [], categorias: [], deudas: [],
     deudaForm: { nombre: '', monto: '' }, editandoDeuda: null, pagandoId: null, pagoMonto: '',
     perfiles: [], importando: null,
+    chat: [], chatInput: '', textoLibre: '',
     presupuesto: 0, presupuestoInput: '',
     form: { tipo: 'gasto', monto: '', fecha: hoy(), categoria_id: null, metodo: 'efectivo', detalle: '' },
     editando: null, nuevaCat: false, nuevaCatNombre: '',
@@ -598,6 +623,48 @@ function app() {
       this.flash = 'Presupuesto actualizado.';
     },
 
+    async ia(mode, body) {
+      const c = await sb();
+      const { data, error } = await c.functions.invoke('asistente', { body: { mode, ...body } });
+      if (error) throw new Error(error.message);
+      if (data && data.error) throw new Error(data.error);
+      return data;
+    },
+    catByName(n) { return (this.categorias.find(c => c.nombre === n) || {}).id || null; },
+
+    async preguntar() {
+      const q = this.chatInput.trim();
+      if (!q) return;
+      this.chat.push({ yo: true, texto: q, t: Date.now() });
+      this.chatInput = ''; this.busy = true;
+      try {
+        const r = await this.ia('chat', { pregunta: q, mes: this.mesRango.ini.slice(0, 7) });
+        this.chat.push({ yo: false, texto: r.texto, t: Date.now() });
+      } catch (e) {
+        this.chat.push({ yo: false, texto: 'Error: ' + e.message + ' (¿falta desplegar la Edge Function "asistente" con GEMINI_API_KEY?)', t: Date.now() });
+      }
+      this.busy = false;
+    },
+
+    async cargarTexto() {
+      const t = this.textoLibre.trim();
+      if (!t) return;
+      this.busy = true; this.error = '';
+      try {
+        const r = await this.ia('texto', { texto: t, categorias: this.categorias.map(c => c.nombre) });
+        const items = (r.items || []).map(it => ({
+          sel: true, tipo: it.tipo === 'ingreso' ? 'ingreso' : 'gasto',
+          detalle: it.detalle || '', monto: String(it.monto).replace('.', ','),
+          categoria_id: this.catByName(it.categoria), profile_id: this.session.user.id, usd: false,
+        })).filter(x => this.parseMonto(x.monto) > 0);
+        if (!items.length) { this.error = 'No detecté gastos en ese texto.'; this.busy = false; return; }
+        this.importando = { banco: 'texto libre', mes: hoy().slice(0, 7), items };
+        this.textoLibre = '';
+        this.view = 'importar';
+      } catch (e) { this.error = 'IA: ' + e.message; }
+      this.busy = false;
+    },
+
     matchProfile(quien) {
       if (!quien) return null;
       const q = quien.toLowerCase();
@@ -641,16 +708,24 @@ function app() {
           this.error = 'No pude leer consumos en ese PDF (formato no reconocido).';
           this.busy = false; return;
         }
-        this.importando = {
-          banco: r.banco, mes: r.mes ? r.mes.slice(0, 7) : hoy().slice(0, 7),
-          items: r.items.map(it => ({
-            sel: true, detalle: it.detalle + (it.cuota ? ` (cuota ${it.cuota})` : ''),
-            monto: String(it.monto).replace('.', ','),
-            categoria_id: this.guessCat(it.detalle),
-            profile_id: this.matchProfile(it.quien) || this.session.user.id,
-            usd: it.usd || false,
-          })),
-        };
+        const items = r.items.map(it => ({
+          sel: true, tipo: 'gasto',
+          detalle: it.detalle + (it.cuota ? ` (cuota ${it.cuota})` : ''),
+          monto: String(it.monto).replace('.', ','),
+          categoria_id: this.guessCat(it.detalle),
+          profile_id: this.matchProfile(it.quien) || this.session.user.id,
+          usd: it.usd || false,
+        }));
+        // categorización por IA (si la Edge Function está desplegada)
+        try {
+          const cat = await this.ia('categorizar', {
+            detalles: items.map(i => i.detalle), categorias: this.categorias.map(c => c.nombre),
+          });
+          (cat.categorias || []).forEach((n, i) => {
+            const id = this.catByName(n); if (id && items[i]) items[i].categoria_id = id;
+          });
+        } catch (_) { /* sin IA: quedan las categorías heurísticas */ }
+        this.importando = { banco: r.banco, mes: r.mes ? r.mes.slice(0, 7) : hoy().slice(0, 7), items };
         this.view = 'importar';
       } catch (e) { this.error = 'Error leyendo el PDF: ' + e.message; }
       this.busy = false;
@@ -661,12 +736,19 @@ function app() {
       if (!sel.length || !this.importando.mes) return;
       this.busy = true; this.error = '';
       const fecha = this.importando.mes + '-01';
-      const rows = sel.map(it => ({
-        fecha, monto: this.parseMonto(it.monto) || 0,
-        categoria_id: it.categoria_id || null, metodo: 'credito',
-        detalle: it.detalle, creado_por: it.profile_id || null,
-      })).filter(r => r.monto > 0);
-      const { error } = await (await sb()).from('gastos').insert(rows);
+      const c = await sb();
+      const gs = [], is = [];
+      for (const it of sel) {
+        const monto = this.parseMonto(it.monto) || 0;
+        if (monto <= 0) continue;
+        const row = { fecha, monto, detalle: it.detalle, creado_por: it.profile_id || null };
+        if (it.tipo === 'ingreso') is.push(row);
+        else gs.push({ ...row, metodo: 'credito', categoria_id: it.categoria_id || null });
+      }
+      let error = null;
+      if (gs.length) ({ error } = await c.from('gastos').insert(gs));
+      if (!error && is.length) ({ error } = await c.from('ingresos').insert(is));
+      const rows = [...gs, ...is];
       this.busy = false;
       if (error) { this.error = error.message; return; }
       const n = rows.length;
