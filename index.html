@@ -222,6 +222,19 @@
                 <option value="transferencia">Transferencia</option>
                 <option value="mercadopago">Mercado Pago</option>
               </select>
+              <template x-if="form.tipo==='gasto' && form.metodo==='credito'">
+                <div style="margin-top:8px">
+                  <label class="f">Tarjeta</label>
+                  <select x-model="form.tarjeta">
+                    <option :value="null">Sin especificar</option>
+                    <template x-for="t in TARJETAS" :key="t"><option :value="t" x-text="t"></option></template>
+                  </select>
+                  <label class="f">Cuotas</label>
+                  <input type="number" min="1" max="48" x-model.number="form.cuotas">
+                  <p x-show="form.cuotas > 1" style="font-size:12px;color:var(--s500);margin-top:4px"
+                     x-text="editando ? 'El monto es por cuota.' : 'Poné el TOTAL de la compra: se carga la cuota 1/' + form.cuotas + ' por ~' + fmt((parseMonto(form.monto) || 0) / form.cuotas) + ' y el resto queda como compromiso futuro.'"></p>
+                </div>
+              </template>
             </div>
           </template>
 
@@ -346,6 +359,24 @@
             <div class="empty" x-show="porMetodo.length===0" style="padding:14px">Sin gastos en el mes.</div>
           </div>
 
+          <div class="card" x-show="compromisos.length">
+            <h3>📅 Compromisos futuros</h3>
+            <p style="font-size:12px;color:var(--s500);margin-top:0">Próximas cuotas de compras ya hechas (estimado — el resumen puede variar centavos).</p>
+            <template x-for="gp in compromisos" :key="gp.key">
+              <div style="border-top:1px solid var(--s200);padding-top:8px;margin-top:8px">
+                <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:600">
+                  <span x-text="gp.label"></span><span x-text="fmt(gp.total)"></span>
+                </div>
+                <template x-for="it in gp.items">
+                  <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--s500);margin-top:3px">
+                    <span x-text="(it.detalle || 'Consumo') + (it.tarjeta ? ' · ' + it.tarjeta : '') + ' (' + it.cuota + ')'"></span>
+                    <span x-text="fmt(it.monto)"></span>
+                  </div>
+                </template>
+              </div>
+            </template>
+          </div>
+
           <div class="card">
             <h3>Quién cargó</h3>
             <template x-for="c in porPersona" :key="c.nombre">
@@ -425,7 +456,8 @@ const hoy = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.
 const isoLocal = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const METODOS = { efectivo: 'Efectivo', debito: 'Débito', credito: 'Crédito', transferencia: 'Transferencia', mercadopago: 'Mercado Pago' };
-const BANCOS = { naranja: 'Naranja', visa: 'Visa', mastercard: 'Mastercard', macro2: 'Visa Gold', 'otro (IA)': 'Otro banco' };
+const BANCOS = { naranja: 'Naranja', visa: 'Visa', mastercard: 'Mastercard', macro2: 'Visa Macro', 'otro (IA)': 'Otro banco' };
+const TARJETAS = ['Naranja', 'Visa Macro', 'Galicia Visa', 'Galicia Mastercard'];
 
 function app() {
   return {
@@ -434,7 +466,8 @@ function app() {
     perfiles: [], importando: null,
     chat: [], chatInput: '', textoLibre: '', procesandoPdf: false,
     presupuesto: 0, presupuestoInput: '',
-    form: { tipo: 'gasto', monto: '', fecha: hoy(), categoria_id: null, metodo: 'efectivo', detalle: '' },
+    form: { tipo: 'gasto', monto: '', fecha: hoy(), categoria_id: null, metodo: 'efectivo', detalle: '', tarjeta: null, cuotas: 1 },
+    gastosCuotas: [],
     editando: null, nuevaCat: false, nuevaCatNombre: '',
     loginEmail: '', loginPass: '',
     loading: false, busy: false, error: '', flash: '', confirmDelete: null,
@@ -494,6 +527,33 @@ function app() {
       this.analisis = (aj || []).find(a => a.clave === 'analisis_texto')?.valor || '';
       await this.loadMes();
       this.checkAnalisis();
+      this.loadCompromisos();
+    },
+
+    async loadCompromisos() {
+      const c = await sb();
+      const { data } = await c.from('gastos').select('fecha, monto, detalle, cuota, tarjeta').not('cuota', 'is', null);
+      this.gastosCuotas = data || [];
+    },
+
+    get compromisos() {
+      const porMes = {};
+      for (const g of this.gastosCuotas) {
+        const m = String(g.cuota || '').match(/^(\d+)\/(\d+)$/);
+        if (!m) continue;
+        const a = +m[1], b = +m[2];
+        if (a >= b) continue;
+        const [Y, M] = g.fecha.slice(0, 7).split('-').map(Number);
+        for (let i = a + 1; i <= b; i++) {
+          const d = new Date(Y, M - 1 + (i - a), 1);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          const gpo = porMes[key] ||= { key, label: MESES[d.getMonth()] + ' ' + d.getFullYear(), total: 0, items: [] };
+          gpo.total += g.monto;
+          gpo.items.push({ detalle: g.detalle, monto: g.monto, tarjeta: g.tarjeta, cuota: `${String(i).padStart(2, '0')}/${String(b).padStart(2, '0')}` });
+        }
+      }
+      const k = hoy().slice(0, 7);
+      return Object.values(porMes).filter(x => x.key > k).sort((x, y) => x.key.localeCompare(y.key));
     },
 
     async loadMes() {
@@ -545,8 +605,16 @@ function app() {
       }
 
       const tabla = this.form.tipo === 'gasto' ? 'gastos' : 'ingresos';
+      const esCred = this.form.tipo === 'gasto' && this.form.metodo === 'credito';
+      const cuotas = esCred ? Math.max(1, Math.min(48, +this.form.cuotas || 1)) : 1;
+      const prevB = this.editando?.cuota?.split('/')[1];
+      const cuota = esCred && cuotas > 1
+        ? (prevB && +prevB === cuotas ? this.editando.cuota : '01/' + String(cuotas).padStart(2, '0'))
+        : null;
+      // En alta con cuotas, el monto ingresado es el TOTAL: se guarda el valor de la cuota 1.
+      const montoRow = cuotas > 1 && !this.editando ? Math.round(monto / cuotas * 100) / 100 : monto;
       const row = this.form.tipo === 'gasto'
-        ? { fecha: this.form.fecha, monto, categoria_id: catId, metodo: this.form.metodo, detalle: this.form.detalle || null }
+        ? { fecha: this.form.fecha, monto: montoRow, categoria_id: catId, metodo: this.form.metodo, detalle: this.form.detalle || null, tarjeta: esCred ? this.form.tarjeta : null, cuota }
         : { fecha: this.form.fecha, monto, detalle: this.form.detalle || null };
 
       const { error } = this.editando
@@ -561,14 +629,16 @@ function app() {
         ? '' : 'Guardado. Ojo: la fecha es de otro mes, no aparece en esta vista.';
       this.resetForm();
       await this.loadMes();
+      this.loadCompromisos();
     },
 
     editar(m) {
-      this.editando = { id: m.id, tipo: m.tipo };
+      this.editando = { id: m.id, tipo: m.tipo, cuota: m.cuota || null };
       this.form = {
         tipo: m.tipo, monto: String(m.monto), fecha: m.fecha,
         categoria_id: m.categoria_id || null, metodo: m.metodo || 'efectivo',
-        detalle: m.detalle || '',
+        detalle: m.detalle || '', tarjeta: m.tarjeta || null,
+        cuotas: m.cuota ? +m.cuota.split('/')[1] || 1 : 1,
       };
       this.view = 'cargar';
       window.scrollTo(0, 0);
@@ -576,7 +646,7 @@ function app() {
 
     resetForm() {
       this.editando = null; this.nuevaCat = false; this.nuevaCatNombre = '';
-      this.form = { tipo: 'gasto', monto: '', fecha: hoy(), categoria_id: null, metodo: 'efectivo', detalle: '' };
+      this.form = { tipo: 'gasto', monto: '', fecha: hoy(), categoria_id: null, metodo: 'efectivo', detalle: '', tarjeta: null, cuotas: 1 };
     },
 
     async borrar(m) {
@@ -586,6 +656,7 @@ function app() {
       const { error } = await (await sb()).from(m.tipo === 'gasto' ? 'gastos' : 'ingresos').delete().eq('id', m.id);
       if (error) { this.error = error.message; return; }
       await this.loadMes();
+      this.loadCompromisos();
     },
 
     async guardarPresupuesto() {
@@ -727,7 +798,7 @@ function app() {
           monto: String(it.monto).replace('.', ','),
           categoria_id: this.guessCat(it.detalle),
           profile_id: this.matchProfile(it.quien) || this.session.user.id,
-          usd: it.usd || false,
+          usd: it.usd || false, cuota: it.cuota || null,
         }));
         // categorización por IA (si la Edge Function está desplegada)
         try {
@@ -758,7 +829,7 @@ function app() {
         if (monto <= 0) continue;
         const row = { fecha, monto, detalle: it.detalle, creado_por: it.profile_id || null };
         if (it.tipo === 'ingreso') is.push(row);
-        else gs.push({ ...row, metodo: 'credito', categoria_id: it.categoria_id || null, origen });
+        else gs.push({ ...row, metodo: 'credito', categoria_id: it.categoria_id || null, origen, cuota: it.cuota || null, tarjeta: origen ? BANCOS[this.importando.banco] || null : null });
       }
       let error = null;
       if (gs.length) ({ error } = await c.from('gastos').insert(gs));
@@ -771,6 +842,7 @@ function app() {
       // si el mes importado es el que se está viendo, recargar
       const { ini, fin } = this.mesRango;
       if (fecha >= ini && fecha < fin) await this.loadMes();
+      this.loadCompromisos();
       this.flash = `${n} consumos importados al resumen de ${fecha.slice(0, 7)}.`;
       this.view = 'movimientos';
     },

@@ -21,6 +21,8 @@ create table if not exists public.gastos (
   fecha date not null default current_date,
   monto numeric(12,2) not null check (monto > 0),
   origen text,
+  tarjeta text,
+  cuota text,
   categoria_id bigint references public.categorias(id) on delete set null,
   detalle text,
   metodo text not null default 'efectivo'
@@ -29,8 +31,10 @@ create table if not exists public.gastos (
   created_at timestamptz not null default now()
 );
 
--- para bases ya creadas antes de agregar la columna origen
+-- para bases ya creadas antes de agregar estas columnas
 alter table public.gastos add column if not exists origen text;
+alter table public.gastos add column if not exists tarjeta text;
+alter table public.gastos add column if not exists cuota text;
 
 create table if not exists public.ingresos (
   id bigint generated always as identity primary key,

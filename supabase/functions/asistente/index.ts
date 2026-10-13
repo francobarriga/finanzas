@@ -91,7 +91,7 @@ Devolvé JSON: {"categorias": ["...", "..."]} con un elemento por detalle, en el
       const ini = `${body.mes}-01`;
       const d = new Date(ini + 'T00:00:00');
       const finMes = new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString().slice(0, 10);
-      const sel = 'fecha, monto, detalle, metodo, origen, categorias(nombre), profiles(nombre)';
+      const sel = 'fecha, monto, detalle, metodo, origen, tarjeta, cuota, categorias(nombre), profiles(nombre)';
       const [g, i, dd, aj, pf] = await Promise.all([
         sb.from('gastos').select(sel).gte('fecha', ini).lt('fecha', finMes),
         sb.from('ingresos').select('fecha, monto, detalle, profiles(nombre)').gte('fecha', ini).lt('fecha', finMes),
