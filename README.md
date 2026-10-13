@@ -36,16 +36,12 @@ npx serve .        # o: python -m http.server 8000
 (Abrilo por http://localhost:3000 — no con doble clic, los módulos ES
 no cargan desde file://.)
 
-## Publicar en GitHub Pages
-```sh
-git init
-git add .
-git commit -m "Finanzas del hogar"
-gh repo create finanzas --private --source=. --push
-```
-Luego en GitHub: **Settings → Pages → Source: Deploy from a branch → main / (root)**.
-La URL queda `https://<usuario>.github.io/finanzas/`. Es pública, pero los
-datos solo se ven con login (RLS en Supabase).
+## Deploy
+Repo público en https://github.com/francobarriga/finanzas con GitHub Pages
+activado (branch `main`, root). URL: https://francobarriga.github.io/finanzas/
+
+La página es pública pero los datos solo se ven con login (RLS en Supabase).
+Para publicar cambios: `git add . && git commit -m "..." && git push`.
 
 > Tip: en el celular, "Agregar a pantalla de inicio" desde el navegador
 > y queda como app.
