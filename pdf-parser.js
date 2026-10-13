@@ -41,6 +41,7 @@ export async function extraerLineas(pdfjs, data) {
 export function detectarBanco(lines) {
   const all = lines.map(l => l.text).join('\n');
   if (/naranja ?x/i.test(all)) return 'naranja';
+  if (/detalle de transaccion|titular de cuenta/i.test(all)) return 'macro2';
   if (/tarjeta cr.dito visa/i.test(all)) return 'visa';
   if (/mastercard/i.test(all)) return 'mastercard';
   return null;
@@ -50,6 +51,15 @@ function mesVencimiento(lines) {
   for (const { text } of lines) {
     const v = text.match(/vence el (\d{2})\/(\d{2})\/(\d{2})/i); // Naranja: "vence el 10/10/26"
     if (v) return `20${v[3]}-${v[2]}-01`;
+  }
+  // Macro Valora: "VENCIMIENTO ... 08 Oct 26" (la fecha puede ir en la línea siguiente)
+  const vtoIdx = lines.findIndex(l => /vencimiento/i.test(l.text));
+  if (vtoIdx >= 0) {
+    for (const l of lines.slice(vtoIdx, vtoIdx + 3)) {
+      const m = l.text.match(/(\d{2})[ ]([A-Za-z]{3})[ ](\d{2})/);
+      const mm = m && MESES[m[2].toLowerCase()];
+      if (mm) return `20${m[3]}-${String(mm).padStart(2, '0')}-01`;
+    }
   }
   // Macro: fila de fechas "10-Sep-26 18-Sep-26 08-Oct-26 ..." → la 3ra es vencimiento
   const fechas = [];
@@ -64,7 +74,7 @@ function mesVencimiento(lines) {
 
 // Línea de consumo con fecha dd/mm/yy o dd-Mmm-yy. Devuelve {detalle, monto, quien, cuota} | null
 function lineaConsumo(text, montoForzado) {
-  const m = text.match(/^(\d{2}[/-]\d{2}[/-]\d{2}|\d{2}-[A-Za-z]{3}-\d{2})\s+(.+)$/);
+  const m = text.match(/^(\d{2}[.\/-]\d{2}[.\/-]\d{2}|\d{2}-[A-Za-z]{3}-\d{2})\s+(.+)$/);
   if (!m) return null;
   return { fechaStr: m[1], resto: m[2], monto: montoForzado };
 }
@@ -152,9 +162,55 @@ function parseMacro(lines) { // Visa y Mastercard de Banco Macro
   return items.filter(x => x.monto > 0);
 }
 
+// Visa Gold "Macro Valora": DD.MM.YY + comprobante + detalle + cuota + montos.
+// Las secciones cierran con "Tarjeta NNNN Total Consumos de <NOMBRE>".
+function parseMacro2(lines) {
+  const items = [];
+  let buffer = [], titular = null;
+  const flush = quien => {
+    for (const it of buffer) it.quien = quien || titular;
+    items.push(...buffer); buffer = [];
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const text = lines[i].text.replace(/\s*_+\s*$/, '');
+    const tit = text.match(/titular de cuenta:?\s*([A-ZÁÉÍÓÚÑ ]+?)(?:\s+NRO|\s*$)/i);
+    if (tit) { titular = tit[1].trim(); continue; }
+    const tot = text.match(/tarjeta \d+ total consumos de (.+)/i);
+    if (tot) { flush(tot[1].trim()); continue; }
+    if (/saldo anterior|su pago|saldo actual|pago min|debitaremos|plan v|cuotas a vencer|cuotas de \$|cftea|fecha comprobante|l.mites|tna|tem |vto\.|resumen n|cuit|suc:|hoja|p.gina|visa gold|consultas|lectura de datos|prepará|régimen|transparencia|interes.*superar|cuestionar/i.test(text)) continue;
+
+    const c = lineaConsumo(text);
+    if (c) {
+      const lm = lastMoney(lines[i].items);
+      let monto = lm ? lm.monto : null;
+      if (monto == null && lines[i + 1] && lastMoney(lines[i + 1].items) && !lineaConsumo(lines[i + 1].text)) {
+        monto = lastMoney(lines[i + 1].items).monto; i++;
+      }
+      if (monto == null || monto <= 0) continue;
+      const usd = /usd/i.test(c.resto);
+      let resto = c.resto.replace(/^\d{4,6}[A-Z]?\*?\s*/, '');   // comprobante
+      while (/\s[\d.]+,\d{2}-?$/.test(resto)) resto = resto.replace(/\s[\d.]+,\d{2}-?$/, '');
+      resto = resto.trim();
+      const cuota = resto.match(/cuota\s*(\d{2}\/\d{2})|(\d{2}\/\d{2})/i);
+      resto = resto.replace(/cuota\s*\d{2}\/\d{2}/i, '').replace(/\s*\d{2}\/\d{2}\s*/, ' ')
+        .replace(/USD\s*[\d.,]*/i, ' USD').replace(/\s+\d{5,}\s*$/, '').replace(/\s+/g, ' ').trim();
+      buffer.push({ detalle: resto || 'Consumo', monto, cuota: cuota ? (cuota[1] || cuota[2]) : null, usd });
+      continue;
+    }
+    // impuestos/cargos sin fecha dentro de este formato también llevan fecha; por las dudas:
+    const im = text.match(/^(.+?)\s+([\d.]+,\d{2})\s*$/);
+    if (im && /^(impuesto|iva|sellos|percepci|comisi|db\.|interes)/i.test(im[1])) {
+      buffer.push({ detalle: im[1].trim(), monto: parseMoney(im[2]) });
+    }
+  }
+  flush(null);
+  return items.filter(x => x.monto > 0);
+}
+
 export function parseResumen(lines) {
   const banco = detectarBanco(lines);
   const items = banco === 'naranja' ? parseNaranja(lines)
+    : banco === 'macro2' ? parseMacro2(lines)
     : banco ? parseMacro(lines) : [];
   return { banco, mes: mesVencimiento(lines), items };
 }
