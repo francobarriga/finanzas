@@ -5,3 +5,4 @@ node_modules/
 # Datos privados — el repo es público, no commitear
 gastos.csv
 import.sql
+setup.sql

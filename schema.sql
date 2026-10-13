@@ -91,27 +91,37 @@ alter table public.gastos enable row level security;
 alter table public.ingresos enable row level security;
 alter table public.ajustes enable row level security;
 
+drop policy if exists "profiles read" on public.profiles;
 create policy "profiles read" on public.profiles
   for select to authenticated using (true);
+drop policy if exists "profiles update self" on public.profiles;
 create policy "profiles update self" on public.profiles
   for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
 
+drop policy if exists "categorias read" on public.categorias;
 create policy "categorias read" on public.categorias
   for select to authenticated using (true);
+drop policy if exists "categorias write" on public.categorias;
 create policy "categorias write" on public.categorias
   for all to authenticated using (true) with check (true);
 
+drop policy if exists "gastos read" on public.gastos;
 create policy "gastos read" on public.gastos
   for select to authenticated using (true);
+drop policy if exists "gastos write" on public.gastos;
 create policy "gastos write" on public.gastos
   for all to authenticated using (true) with check (true);
 
+drop policy if exists "ingresos read" on public.ingresos;
 create policy "ingresos read" on public.ingresos
   for select to authenticated using (true);
+drop policy if exists "ingresos write" on public.ingresos;
 create policy "ingresos write" on public.ingresos
   for all to authenticated using (true) with check (true);
 
+drop policy if exists "ajustes read" on public.ajustes;
 create policy "ajustes read" on public.ajustes
   for select to authenticated using (true);
+drop policy if exists "ajustes write" on public.ajustes;
 create policy "ajustes write" on public.ajustes
   for all to authenticated using (true) with check (true);
