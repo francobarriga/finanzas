@@ -56,7 +56,11 @@ Setup:
 1. Crear API key gratis en https://aistudio.google.com → **Get API key**.
 2. Supabase → **Edge Functions → Deploy new function** → nombre `asistente`
    → pegar el contenido de `supabase/functions/asistente/index.ts` → Deploy.
-   (o con CLI: `npx supabase functions deploy asistente --project-ref jnxspfmfksobixumsowb`)
+   (o con CLI: `npx supabase functions deploy super-service --project-ref jnxspfmfksobixumsowb`)
+
+   > En producción la función se llama `super-service` (nombre elegido en el
+   > dashboard). La app invoca ese nombre; el archivo local sigue en
+   > `supabase/functions/asistente/` por compatibilidad del repo.
 3. Edge Functions → **Secrets** → `GEMINI_API_KEY` = la key del paso 1.
    (o `npx supabase secrets set GEMINI_API_KEY=...`)
 

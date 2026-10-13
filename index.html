@@ -596,7 +596,7 @@ function app() {
 
     async ia(mode, body) {
       const c = await sb();
-      const { data, error } = await c.functions.invoke('asistente', { body: { mode, ...body } });
+      const { data, error } = await c.functions.invoke('super-service', { body: { mode, ...body } });
       if (error) throw new Error(error.message);
       if (data && data.error) throw new Error(data.error);
       return data;
@@ -636,7 +636,7 @@ function app() {
         const r = await this.ia('chat', { pregunta: q, mes: this.mesRango.ini.slice(0, 7) });
         this.chat.push({ yo: false, texto: r.texto, t: Date.now() });
       } catch (e) {
-        this.chat.push({ yo: false, texto: 'Error: ' + e.message + ' (¿falta desplegar la Edge Function "asistente" con GEMINI_API_KEY?)', t: Date.now() });
+        this.chat.push({ yo: false, texto: 'Error: ' + e.message + ' (¿falta desplegar la Edge Function "super-service" con GEMINI_API_KEY?)', t: Date.now() });
       }
       this.busy = false;
     },
