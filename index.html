@@ -229,6 +229,8 @@
                     <option :value="null">Sin especificar</option>
                     <template x-for="t in TARJETAS" :key="t"><option :value="t" x-text="t"></option></template>
                   </select>
+                  <p x-show="form.tarjeta && cierres[form.tarjeta]" style="font-size:11px;color:var(--s500);margin-top:2px"
+                     x-text="'Cierra el día ' + cierres[form.tarjeta] + ' — compras después caen en el resumen siguiente'"></p>
                   <label class="f">Cuotas</label>
                   <input type="number" min="1" max="48" x-model.number="form.cuotas">
                   <p x-show="form.cuotas > 1" style="font-size:12px;color:var(--s500);margin-top:4px"
@@ -456,8 +458,9 @@ const hoy = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.
 const isoLocal = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const METODOS = { efectivo: 'Efectivo', debito: 'Débito', credito: 'Crédito', transferencia: 'Transferencia', mercadopago: 'Mercado Pago' };
-const BANCOS = { naranja: 'Naranja', visa: 'Visa', mastercard: 'Mastercard', macro2: 'Visa Macro', 'otro (IA)': 'Otro banco' };
+const BANCOS = { naranja: 'Naranja', visa: 'Galicia Visa', mastercard: 'Galicia Mastercard', macro2: 'Visa Macro', 'otro (IA)': 'Otro banco' };
 const TARJETAS = ['Naranja', 'Visa Macro', 'Galicia Visa', 'Galicia Mastercard'];
+const slugCierre = t => 'cierre_' + t.toLowerCase().replace(/\s+/g, '_');
 
 function app() {
   return {
@@ -467,7 +470,7 @@ function app() {
     chat: [], chatInput: '', textoLibre: '', procesandoPdf: false,
     presupuesto: 0, presupuestoInput: '',
     form: { tipo: 'gasto', monto: '', fecha: hoy(), categoria_id: null, metodo: 'efectivo', detalle: '', tarjeta: null, cuotas: 1 },
-    gastosCuotas: [],
+    gastosCuotas: [], cierres: {},
     editando: null, nuevaCat: false, nuevaCatNombre: '',
     loginEmail: '', loginPass: '',
     loading: false, busy: false, error: '', flash: '', confirmDelete: null,
@@ -525,6 +528,11 @@ function app() {
       this.presupuestoInput = this.presupuesto || '';
       this.analisisMes = (aj || []).find(a => a.clave === 'analisis_mes')?.valor || '';
       this.analisis = (aj || []).find(a => a.clave === 'analisis_texto')?.valor || '';
+      this.cierres = {};
+      for (const a of aj || []) {
+        const t = TARJETAS.find(x => slugCierre(x) === a.clave);
+        if (t) this.cierres[t] = +a.valor;
+      }
       await this.loadMes();
       this.checkAnalisis();
       this.loadCompromisos();
@@ -613,9 +621,17 @@ function app() {
         : null;
       // En alta con cuotas, el monto ingresado es el TOTAL: se guarda el valor de la cuota 1.
       const montoRow = cuotas > 1 && !this.editando ? Math.round(monto / cuotas * 100) / 100 : monto;
+      // Compra de crédito posterior al cierre de esa tarjeta → cae en el resumen del mes siguiente.
+      let fecha = this.form.fecha, notaCierre = '';
+      const diaCierre = esCred && this.form.tarjeta ? this.cierres[this.form.tarjeta] : null;
+      if (esCred && !this.editando && diaCierre && +fecha.slice(8, 10) > diaCierre) {
+        const d = new Date(fecha + 'T00:00:00');
+        fecha = isoLocal(new Date(d.getFullYear(), d.getMonth() + 1, 1));
+        notaCierre = `Compra posterior al cierre del día ${diaCierre}: entra en el resumen de ${MESES[+fecha.slice(5, 7) - 1]}.`;
+      }
       const row = this.form.tipo === 'gasto'
-        ? { fecha: this.form.fecha, monto: montoRow, categoria_id: catId, metodo: this.form.metodo, detalle: this.form.detalle || null, tarjeta: esCred ? this.form.tarjeta : null, cuota }
-        : { fecha: this.form.fecha, monto, detalle: this.form.detalle || null };
+        ? { fecha, monto: montoRow, categoria_id: catId, metodo: this.form.metodo, detalle: this.form.detalle || null, tarjeta: esCred ? this.form.tarjeta : null, cuota }
+        : { fecha, monto, detalle: this.form.detalle || null };
 
       const { error } = this.editando
         ? await c.from(tabla).update(row).eq('id', this.editando.id)
@@ -625,8 +641,8 @@ function app() {
 
       // Si el movimiento pertenece a otro mes, avisar.
       const { ini, fin } = this.mesRango;
-      this.flash = this.form.fecha >= ini && this.form.fecha < fin
-        ? '' : 'Guardado. Ojo: la fecha es de otro mes, no aparece en esta vista.';
+      this.flash = (fecha >= ini && fecha < fin
+        ? notaCierre : 'Guardado. Ojo: la fecha es de otro mes, no aparece en esta vista. ' + notaCierre).trim();
       this.resetForm();
       await this.loadMes();
       this.loadCompromisos();
@@ -778,6 +794,11 @@ function app() {
         const data = new Uint8Array(await file.arrayBuffer());
         const lines = await parser.extraerLineas(pdfjs, data);
         const r = parser.parseResumen(lines);
+        if (r.cierre && TARJETAS.includes(BANCOS[r.banco])) {
+          const t = BANCOS[r.banco];
+          this.cierres[t] = r.cierre;
+          (await sb()).from('ajustes').upsert({ clave: slugCierre(t), valor: String(r.cierre) }).then(() => {});
+        }
         if (!r.banco || !r.items.length) {
           // Formato desconocido: intentar con la IA (requiere Edge Function desplegada)
           const texto = lines.map(l => l.text).join('\n');

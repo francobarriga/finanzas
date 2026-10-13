@@ -207,10 +207,27 @@ function parseMacro2(lines) {
   return items.filter(x => x.monto > 0);
 }
 
+// Día de cierre del próximo ciclo (para saber a qué resumen entra una compra nueva).
+function cierreResumen(lines) {
+  for (const { text } of lines.slice(0, 25)) {
+    const m = text.match(/pr.ximo cierre\s+(\d{1,2})/i);
+    if (m) return +m[1];
+  }
+  // Galicia/Macro1: fila "10-Sep-26 18-Sep-26 08-Oct-26 16-Oct-26 05-Nov-26 13-Nov-26"
+  // → la 4ta fecha es el próximo cierre
+  const dias = [];
+  for (const { text } of lines.slice(0, 15)) {
+    for (const m of text.matchAll(/(\d{2})-(\w{3})-(\d{2})/g)) {
+      if (MESES[m[2].toLowerCase()]) dias.push(+m[1]);
+    }
+  }
+  return dias.length >= 4 ? dias[3] : null;
+}
+
 export function parseResumen(lines) {
   const banco = detectarBanco(lines);
   const items = banco === 'naranja' ? parseNaranja(lines)
     : banco === 'macro2' ? parseMacro2(lines)
     : banco ? parseMacro(lines) : [];
-  return { banco, mes: mesVencimiento(lines), items };
+  return { banco, mes: mesVencimiento(lines), cierre: cierreResumen(lines), items };
 }
