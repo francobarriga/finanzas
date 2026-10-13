@@ -15,7 +15,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const KEY = Deno.env.get('GEMINI_API_KEY') ?? '';
-const MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-2.5-flash-lite';
+const MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-3.5-flash-lite';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
