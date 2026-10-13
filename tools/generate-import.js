@@ -72,7 +72,7 @@ vals(fecha, monto, cat, detalle, metodo) as (values
   ${gastosVals.join(',\n  ')}
 )
 insert into public.gastos (fecha, monto, categoria_id, detalle, metodo, creado_por)
-select v.fecha, v.monto, c.id, v.detalle || ' [planilla]', v.metodo, u.id
+select v.fecha::date, v.monto, c.id, v.detalle || ' [planilla]', v.metodo, u.id
 from vals v
 join u on true
 left join public.categorias c on c.nombre = v.cat;
@@ -81,7 +81,7 @@ with vals(fecha, monto, detalle, email) as (values
   ${ingresosVals.join(',\n  ')}
 )
 insert into public.ingresos (fecha, monto, detalle, creado_por)
-select v.fecha, v.monto, v.detalle || ' [planilla]', u.id
+select v.fecha::date, v.monto, v.detalle || ' [planilla]', u.id
 from vals v
 join auth.users u on u.email = v.email;
 `;
