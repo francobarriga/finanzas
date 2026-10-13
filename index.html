@@ -237,8 +237,9 @@
             <input type="text" x-model="textoLibre" style="margin-bottom:8px"
               placeholder='Ej: "45 mil de nafta y 12 de farmacia"'>
             <button class="btn-ghost" style="margin-top:0" @click="cargarTexto()" :disabled="busy">✦ Cargar con IA</button>
-            <button class="btn-ghost" style="margin-top:0" @click="$refs.pdf.click()">📄 Importar resumen de tarjeta (PDF)</button>
+            <button class="btn-ghost" style="margin-top:0" @click="$refs.pdf.click()" :disabled="procesandoPdf">📄 Importar resumen de tarjeta (PDF)</button>
             <input type="file" accept=".pdf" x-ref="pdf" style="display:none" @change="leerPdf($event)">
+            <div class="skeleton" x-show="procesandoPdf">Leyendo el resumen…</div>
           </div>
         </div>
 
@@ -419,7 +420,7 @@ function app() {
     session: null, profile: null, view: 'cargar',
     mesCursor: new Date(), gastos: [], ingresos: [], categorias: [],
     perfiles: [], importando: null,
-    chat: [], chatInput: '', textoLibre: '',
+    chat: [], chatInput: '', textoLibre: '', procesandoPdf: false,
     presupuesto: 0, presupuestoInput: '',
     form: { tipo: 'gasto', monto: '', fecha: hoy(), categoria_id: null, metodo: 'efectivo', detalle: '' },
     editando: null, nuevaCat: false, nuevaCatNombre: '',
@@ -654,7 +655,7 @@ function app() {
       const file = ev.target.files[0];
       ev.target.value = '';
       if (!file) return;
-      this.busy = true; this.error = '';
+      this.busy = true; this.error = ''; this.procesandoPdf = true;
       try {
         const pdfjs = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs');
         pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
@@ -663,8 +664,18 @@ function app() {
         const lines = await parser.extraerLineas(pdfjs, data);
         const r = parser.parseResumen(lines);
         if (!r.banco || !r.items.length) {
-          this.error = 'No pude leer consumos en ese PDF (formato no reconocido).';
-          this.busy = false; return;
+          // Formato desconocido: intentar con la IA (requiere Edge Function desplegada)
+          const texto = lines.map(l => l.text).join('\n');
+          const ia = await this.ia('pdf', { lineas: texto })
+            .catch(() => null);
+          if (!ia || !ia.items || !ia.items.length) {
+            this.error = 'No pude leer consumos en ese PDF. Si es otro banco, pasame el archivo y agrego el formato.';
+            window.scrollTo(0, 0);
+            this.busy = false; this.procesandoPdf = false; return;
+          }
+          r.mes = r.mes || hoy().slice(0, 7) + '-01';
+          r.banco = 'otro (IA)';
+          r.items = ia.items;
         }
         const items = r.items.map(it => ({
           sel: true, tipo: 'gasto',
@@ -685,8 +696,8 @@ function app() {
         } catch (_) { /* sin IA: quedan las categorías heurísticas */ }
         this.importando = { banco: r.banco, mes: r.mes ? r.mes.slice(0, 7) : hoy().slice(0, 7), items };
         this.view = 'importar';
-      } catch (e) { this.error = 'Error leyendo el PDF: ' + e.message; }
-      this.busy = false;
+      } catch (e) { this.error = 'Error leyendo el PDF: ' + e.message; window.scrollTo(0, 0); }
+      this.busy = false; this.procesandoPdf = false;
     },
 
     async importar() {
