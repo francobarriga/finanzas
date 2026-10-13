@@ -551,7 +551,22 @@ function app() {
       this.ingresos = (i || []).map(x => ({ ...x, tipo: 'ingreso' }));
     },
 
-    parseMonto(v) { return parseFloat(String(v).replace(/\./g, '').replace(',', '.')); },
+    parseMonto(v) {
+      const s = String(v).trim().replace(/[\s$]/g, '');
+      if (!s) return NaN;
+      const hasC = s.includes(','), hasP = s.includes('.');
+      if (hasC && hasP) {
+        // con ambos separadores, el último es el decimal
+        const dec = s.lastIndexOf(',') > s.lastIndexOf('.') ? ',' : '.';
+        return parseFloat(s.split(dec === ',' ? '.' : ',').join('').replace(dec, '.'));
+      }
+      if (hasC || hasP) {
+        const parts = s.split(hasC ? ',' : '.');
+        if (parts.length === 2 && parts[1].length < 3) return parseFloat(parts.join('.'));
+        return parseFloat(parts.join('')); // 3 dígitos o separadores múltiples → miles
+      }
+      return parseFloat(s);
+    },
 
     async guardar() {
       const monto = this.parseMonto(this.form.monto);
