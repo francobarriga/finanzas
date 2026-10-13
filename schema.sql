@@ -20,6 +20,7 @@ create table if not exists public.gastos (
   id bigint generated always as identity primary key,
   fecha date not null default current_date,
   monto numeric(12,2) not null check (monto > 0),
+  origen text,
   categoria_id bigint references public.categorias(id) on delete set null,
   detalle text,
   metodo text not null default 'efectivo'
@@ -27,6 +28,9 @@ create table if not exists public.gastos (
   creado_por uuid not null default auth.uid() references public.profiles(id),
   created_at timestamptz not null default now()
 );
+
+-- para bases ya creadas antes de agregar la columna origen
+alter table public.gastos add column if not exists origen text;
 
 create table if not exists public.ingresos (
   id bigint generated always as identity primary key,

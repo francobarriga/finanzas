@@ -91,7 +91,7 @@ Devolvé JSON: {"categorias": ["...", "..."]} con un elemento por detalle, en el
       const ini = `${body.mes}-01`;
       const d = new Date(ini + 'T00:00:00');
       const finMes = new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString().slice(0, 10);
-      const sel = 'fecha, monto, detalle, metodo, categorias(nombre), profiles(nombre)';
+      const sel = 'fecha, monto, detalle, metodo, origen, categorias(nombre), profiles(nombre)';
       const [g, i, dd, aj, pf] = await Promise.all([
         sb.from('gastos').select(sel).gte('fecha', ini).lt('fecha', finMes),
         sb.from('ingresos').select('fecha, monto, detalle, profiles(nombre)').gte('fecha', ini).lt('fecha', finMes),
@@ -107,9 +107,10 @@ Devolvé JSON: {"categorias": ["...", "..."]} con un elemento por detalle, en el
         deudas: dd.data || [],
         presupuesto_mensual: (aj.data || []).find((a: any) => a.clave === 'presupuesto_mensual')?.valor || 'sin definir',
       };
+      const REGLA = ` Regla de la app: los consumos de tarjetas se importan del resumen como gastos individuales con metodo "credito" y campo "origen" indicando de qué resumen vienen. El pago del resumen NO se carga como gasto porque duplicaría — ya están contados los consumos. Si el usuario pregunta por pagos de tarjeta, explicale esto.`;
       if (body.mode === 'chat') {
         const out = await gemini(
-          `Sos un asistente de finanzas de un hogar argentino. Respondés en español rioplatense, breve y concreto, con los números reales del contexto (montos en ARS). Datos del mes consultado: ${JSON.stringify(ctx)}`,
+          `Sos un asistente de finanzas de un hogar argentino. Respondés en español rioplatense, breve y concreto, con los números reales del contexto (montos en ARS).${REGLA} Datos del mes consultado: ${JSON.stringify(ctx)}`,
           String(body.pregunta || '').slice(0, 1000),
         );
         return json({ texto: out });
@@ -129,7 +130,7 @@ Balance del mes (ingresos vs gastos) y % del presupuesto usado si existe.
 💡 Recomendaciones
 3 acciones concretas para el mes que arranca, ordenadas por impacto.
 
-Máximo 300 palabras, sin markdown con #, usá saltos de línea y los emojis de sección indicados.`,
+Máximo 300 palabras, sin markdown con #, usá saltos de línea y los emojis de sección indicados.${REGLA}`,
         `Datos completos del mes a analizar: ${JSON.stringify(ctx)}`,
       );
       return json({ texto: out });
