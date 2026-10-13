@@ -1,0 +1,23 @@
+{
+  "name": "finanzas",
+  "version": "1.0.0",
+  "description": "App web estática para cargar y ver gastos/ingresos compartidos entre dos personas. Sin servidor: HTML + Alpine.js + Supabase (Postgres + Auth + RLS), todo desde el browser.",
+  "main": "config.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://francobarriga@github.com/francobarriga/finanzas.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/francobarriga/finanzas/issues"
+  },
+  "homepage": "https://github.com/francobarriga/finanzas#readme",
+  "dependencies": {
+    "pdfjs-dist": "^4.10.38"
+  }
+}

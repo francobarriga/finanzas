@@ -232,6 +232,46 @@
             @click="guardar()" :disabled="busy"
             x-text="(editando ? 'Guardar cambios' : 'Cargar ') + form.tipo"></button>
           <button class="btn-ghost" x-show="editando" @click="resetForm()">Cancelar edición</button>
+
+          <div style="text-align:center;margin-top:22px;border-top:1px solid var(--s200);padding-top:16px">
+            <button class="btn-ghost" style="margin-top:0" @click="$refs.pdf.click()">📄 Importar resumen de tarjeta (PDF)</button>
+            <input type="file" accept=".pdf" x-ref="pdf" style="display:none" @change="leerPdf($event)">
+          </div>
+        </div>
+
+        <!-- ======== IMPORTAR PDF ======== -->
+        <div x-show="!loading && view==='importar' && importando">
+          <div class="card">
+            <h3 x-text="'Resumen ' + (importando?.banco || '')"></h3>
+            <label class="f">Mes al que se cargan los consumos</label>
+            <input type="month" x-model="importando.mes">
+            <p style="font-size:12px;color:var(--s500);margin-top:6px">Se cargan el día 1 de ese mes.</p>
+          </div>
+          <template x-for="(it, idx) in importando?.items || []" :key="idx">
+            <div class="card" style="padding:10px 12px;margin-bottom:6px" :style="!it.sel && 'opacity:.45'">
+              <div style="display:flex;gap:8px;align-items:center">
+                <input type="checkbox" x-model="it.sel" style="width:auto;flex:none">
+                <input type="text" x-model="it.detalle" style="flex:1;padding:6px 8px;font-size:13px">
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:6px;margin-left:26px">
+                <input type="text" inputmode="decimal" x-model="it.monto" style="padding:6px 8px;font-size:13px">
+                <select x-model="it.categoria_id" style="padding:6px 8px;font-size:13px">
+                  <template x-for="c in categorias" :key="c.id">
+                    <option :value="c.id" x-text="c.nombre"></option>
+                  </template>
+                </select>
+                <select x-model="it.profile_id" style="padding:6px 8px;font-size:13px">
+                  <template x-for="p in perfiles" :key="p.id">
+                    <option :value="p.id" x-text="p.nombre"></option>
+                  </template>
+                </select>
+              </div>
+              <div x-show="it.usd" style="font-size:11px;color:var(--red);margin:4px 0 0 26px">En dólares — revisá el monto en pesos</div>
+            </div>
+          </template>
+          <button class="btn btn-gasto" @click="importar()" :disabled="busy"
+            x-text="'Importar ' + importandoSeleccionados + ' consumos (' + fmt(importandoTotal) + ')'"></button>
+          <button class="btn-ghost" @click="importando=null; view='cargar'">Cancelar</button>
         </div>
 
         <!-- ======== MOVIMIENTOS ======== -->
@@ -409,6 +449,7 @@ function app() {
     session: null, profile: null, view: 'cargar',
     mesCursor: new Date(), gastos: [], ingresos: [], categorias: [], deudas: [],
     deudaForm: { nombre: '', monto: '' }, editandoDeuda: null, pagandoId: null, pagoMonto: '',
+    perfiles: [], importando: null,
     presupuesto: 0, presupuestoInput: '',
     form: { tipo: 'gasto', monto: '', fecha: hoy(), categoria_id: null, metodo: 'efectivo', detalle: '' },
     editando: null, nuevaCat: false, nuevaCatNombre: '',
@@ -453,13 +494,15 @@ function app() {
 
     async loadAll() {
       const c = await sb();
-      const [{ data: p }, { data: cats }, { data: aj }, { data: dd }] = await Promise.all([
+      const [{ data: p }, { data: pf }, { data: cats }, { data: aj }, { data: dd }] = await Promise.all([
         c.from('profiles').select('*').eq('id', this.session.user.id).single(),
+        c.from('profiles').select('*'),
         c.from('categorias').select('*').order('nombre'),
         c.from('ajustes').select('*'),
         c.from('deudas').select('*').order('saldo', { ascending: false }),
       ]);
       this.profile = p;
+      this.perfiles = pf || [];
       this.categorias = cats || [];
       this.deudas = dd || [];
       const pres = (aj || []).find(a => a.clave === 'presupuesto_mensual');
@@ -553,6 +596,86 @@ function app() {
       if (error) { this.error = error.message; return; }
       this.presupuesto = v;
       this.flash = 'Presupuesto actualizado.';
+    },
+
+    matchProfile(quien) {
+      if (!quien) return null;
+      const q = quien.toLowerCase();
+      const p = this.perfiles.find(p =>
+        p.nombre.toLowerCase().split(/\s+/).some(t => q.includes(t)) ||
+        q.split(/\s+/).some(t => p.nombre.toLowerCase().includes(t)));
+      return p ? p.id : null;
+    },
+
+    guessCat(detalle) {
+      const d = (detalle || '').toLowerCase();
+      const cat = nombre => (this.categorias.find(c => c.nombre === nombre) || {}).id || null;
+      if (/hipermercado|makro|super|comida|pedidosya|almacen/i.test(d)) return cat('Comida y super');
+      if (/google|spotify|netflix|one\s/i.test(d)) return cat('Suscripciones');
+      if (/impuesto|iva|sellos|percepc|comisi|db\.rg/i.test(d)) return cat('Tarjeta de crédito');
+      if (/nafta|ypf|shell|axion/i.test(d)) return cat('Transporte');
+      return cat('Otros');
+    },
+
+    get importandoSeleccionados() {
+      return this.importando ? this.importando.items.filter(i => i.sel).length : 0;
+    },
+    get importandoTotal() {
+      return this.importando ? this.importando.items.filter(i => i.sel)
+        .reduce((s, i) => s + (this.parseMonto(i.monto) || 0), 0) : 0;
+    },
+
+    async leerPdf(ev) {
+      const file = ev.target.files[0];
+      ev.target.value = '';
+      if (!file) return;
+      this.busy = true; this.error = '';
+      try {
+        const pdfjs = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs');
+        pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
+        const parser = await import('./pdf-parser.js');
+        const data = new Uint8Array(await file.arrayBuffer());
+        const lines = await parser.extraerLineas(pdfjs, data);
+        const r = parser.parseResumen(lines);
+        if (!r.banco || !r.items.length) {
+          this.error = 'No pude leer consumos en ese PDF (formato no reconocido).';
+          this.busy = false; return;
+        }
+        this.importando = {
+          banco: r.banco, mes: r.mes ? r.mes.slice(0, 7) : hoy().slice(0, 7),
+          items: r.items.map(it => ({
+            sel: true, detalle: it.detalle + (it.cuota ? ` (cuota ${it.cuota})` : ''),
+            monto: String(it.monto).replace('.', ','),
+            categoria_id: this.guessCat(it.detalle),
+            profile_id: this.matchProfile(it.quien) || this.session.user.id,
+            usd: it.usd || false,
+          })),
+        };
+        this.view = 'importar';
+      } catch (e) { this.error = 'Error leyendo el PDF: ' + e.message; }
+      this.busy = false;
+    },
+
+    async importar() {
+      const sel = this.importando.items.filter(i => i.sel);
+      if (!sel.length || !this.importando.mes) return;
+      this.busy = true; this.error = '';
+      const fecha = this.importando.mes + '-01';
+      const rows = sel.map(it => ({
+        fecha, monto: this.parseMonto(it.monto) || 0,
+        categoria_id: it.categoria_id || null, metodo: 'credito',
+        detalle: it.detalle, creado_por: it.profile_id || null,
+      })).filter(r => r.monto > 0);
+      const { error } = await (await sb()).from('gastos').insert(rows);
+      this.busy = false;
+      if (error) { this.error = error.message; return; }
+      const n = rows.length;
+      this.importando = null;
+      // si el mes importado es el que se está viendo, recargar
+      const { ini, fin } = this.mesRango;
+      if (fecha >= ini && fecha < fin) await this.loadMes();
+      this.flash = `${n} consumos importados al resumen de ${fecha.slice(0, 7)}.`;
+      this.view = 'movimientos';
     },
 
     metodoLabel(m) { return METODOS[m] || ''; },
